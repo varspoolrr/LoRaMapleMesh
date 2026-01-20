@@ -40,12 +40,12 @@ const int TANK_EMPTY_CM = 100;
 const int TANK_FULL_CM  = 20;  
 
 // --- WIFI & MQTT CREDENTIALS ---
-const char* WIFI_SSID = "HFIoT";
-const char* WIFI_PASS = "IoTforme!";
-const char* MQTT_SERVER = "192.168.7.33";
+const char* WIFI_SSID = "SSID";
+const char* WIFI_PASS = "PASSWORD";
+const char* MQTT_SERVER = "IP_OR_HOSTNAME";
 const int   MQTT_PORT   = 1883;
-const char* MQTT_USER   = "mqtt_user"; 
-const char* MQTT_PASS   = "You31Loa"; 
+const char* MQTT_USER   = "USERNAME"; 
+const char* MQTT_PASS   = "PASSWORD"; 
 
 #define FREQUENCY    915.0
 
