@@ -1,59 +1,46 @@
 /*
-   - Dual I2C: OLED (17/18) + Vacuum (41/42)
-   - Vacuum: Auto-Zero Calibration at boot (3.3V)
-   - Tank: AJ-SR04M (3.3V wired to GPIO 45/46)
-   - Solar: Seengreat Monitor (CHRG=6, DONE=7)
-   - Battery: Voltage Divider on GPIO 5
-   - Temp: DS18B20 on GPIO 4 (With 185F Glitch Fix)
-   - POWER SAVING:
-     1. CPU idles at 80MHz, boosts to 240MHz for sensor reads
-     2. Screen sleeps after 60s (Press PRG to wake)
-     3. LED only blinks if Screen is ON
-     4. TX Interval 5 minutes
-     5. Transmits IMMEDIATELY on boot
+   HELTEC V4 - HARTER FARMS PRODUCTION
+   FIRMWARE v1.0.6
+   -----------------------------------
+   - FEATURE: PRG Button now triggers instant sensor read & transmit.
+   - FIX: Gateway continuously reads/reports local sensors to MQTT.
+   - CLEAN: No license code included (relies on secrets.h).
 */
 
+#include "LoRaWan_APP.h"
 #include <WiFi.h>
 #include <WebServer.h>
-#include <RadioLib.h>
-#include "SSD1306Wire.h"
+#include "HT_SSD1306Wire.h"
 #include <PubSubClient.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <ArduinoJson.h> 
 #include <Wire.h>
 #include "Adafruit_MPRLS.h" 
+#include "secrets.h" 
+
+// ==========================================
+//           VERSION CONTROL
+// ==========================================
+#define FIRMWARE_VERSION "1.0.6" // <--- Version Bump
+#define BUILD_DATE       "01.20.2026"  
 
 // ==========================================
 //           USER CONFIGURATION
 // ==========================================
-bool IS_GATEWAY = true;      // <--- SET TO TRUE FOR THE ONE CONNECTED TO WIFI
-String NODE_ID = "node_1";    // <--- CHANGE THIS FOR EACH NODE!
+bool IS_GATEWAY = false;      // <--- SET TRUE FOR HOUSE UNIT
+String NODE_ID = "node_4";    // <--- CHANGE FOR EACH NODE
 
-// --- BATTERY CALIBRATION ---
+// --- SENSOR CONFIG ---
 float BATT_CALIBRATION = 2.17; 
-
-// --- TANK CONFIGURATION (Centimeters) ---
 const int TANK_EMPTY_CM = 100; 
 const int TANK_FULL_CM  = 20;  
-
-// --- WIFI & MQTT CREDENTIALS ---
-const char* WIFI_SSID = "SSID";
-const char* WIFI_PASS = "PASSWORD";
-const char* MQTT_SERVER = "MQTT_SERVER";
-const int   MQTT_PORT   = 1883;
-const char* MQTT_USER   = "MQTT_USER"; 
-const char* MQTT_PASS   = "MQTT_PASSWORD"; 
-
-#define FREQUENCY    915.0
 
 // ==========================================
 //           PIN DEFINITIONS
 // ==========================================
-// FIXED TANK PINS (To avoid USB Conflict on 19/20)
 #define PIN_TRIG     45
 #define PIN_ECHO     46
-
 #define VAC_SDA_PIN  41       
 #define VAC_SCL_PIN  42       
 #define PIN_CHRG     6        
@@ -61,21 +48,13 @@ const char* MQTT_PASS   = "MQTT_PASSWORD";
 #define PIN_EXT_BATT 5        
 #define ONE_WIRE_BUS 4        
 #define LED_PIN      35
-#define OLED_SDA     17
-#define OLED_SCL     18
-#define OLED_RST     21
-#define VEXT_PIN     36   
-#define LORA_NSS     8
-#define LORA_DIO1    14
-#define LORA_RST     12
-#define LORA_BUSY    13
 #define PRG_BUTTON   0  
 
 // ==========================================
 //           GLOBAL OBJECTS
 // ==========================================
-SSD1306Wire display(0x3C, OLED_SDA, OLED_SCL);
-SX1262 radio = new Module(LORA_NSS, LORA_DIO1, LORA_RST, LORA_BUSY);
+SSD1306Wire myDisplay(0x3C, 500000, SDA_OLED, SCL_OLED, GEOMETRY_128_64, RST_OLED);
+
 WebServer server(80);
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -84,34 +63,51 @@ DallasTemperature sensors(&oneWire);
 TwoWire vacWire = TwoWire(1); 
 Adafruit_MPRLS mpr = Adafruit_MPRLS(-1, -1);
 
+// --- RADIO VARIABLES ---
+#define RF_FREQUENCY           915000000 
+#define TX_OUTPUT_POWER        22        
+#define LORA_BANDWIDTH         0         
+#define LORA_SPREADING_FACTOR  7         
+#define LORA_CODINGRATE        1         
+#define LORA_PREAMBLE_LENGTH   8         
+#define LORA_SYMBOL_TIMEOUT    0         
+#define LORA_FIX_LENGTH_PAYLOAD_ON false
+#define LORA_IQ_INVERSION_ON   false
+#define BUFFER_SIZE            255 
+
+char txpacket[BUFFER_SIZE];
+char rxpacket[BUFFER_SIZE];
+static RadioEvents_t RadioEvents;
+int16_t rssi, rxSize;
+bool lora_idle = true;
+
+// --- SENSOR VARIABLES ---
 bool hasVacuumSensor = false;
 float baseline_hPa = 1013.25; 
 String lastMessage = "Booting...";
-volatile bool packetReceived = false;
 float currentTemp = 0.0;
 float currentVac  = 0.0;
 int   solarStatus = 0; 
 int   tankPercent = 0;
 
-// --- TIMING VARIABLES ---
 unsigned long lastTempTime = 0;
-// UPDATE INTERVAL: 300000 = 5 Minutes
-const long tempInterval = 300000; 
-
-// --- SCREEN SAVER VARIABLES ---
+const long tempInterval = 300000; // 5 Minutes
 bool isScreenOn = true;
 unsigned long screenOnTime = 0;
 const long screenTimeout = 60000; 
 
 // ==========================================
+//           FORWARD DECLARATIONS
+// ==========================================
+void OnTxDone( void );
+void OnTxTimeout( void );
+void OnRxDone( uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr );
+void readSensorsAndSend();
+
+// ==========================================
 //           HELPER FUNCTIONS
 // ==========================================
-#if defined(ESP8266) || defined(ESP32)
-  ICACHE_RAM_ATTR
-#endif
-void setFlag() { packetReceived = true; }
 
-// --- TANK LEVEL LOGIC ---
 int readTankLevel() {
   digitalWrite(PIN_TRIG, LOW); delayMicroseconds(2);
   digitalWrite(PIN_TRIG, HIGH); delayMicroseconds(10);
@@ -141,61 +137,6 @@ int readSolarStatus() {
   return 0;                 
 }
 
-// --- SMART DISPLAY MANAGER ---
-void wakeScreen() {
-  isScreenOn = true;
-  screenOnTime = millis();
-  display.displayOn();
-}
-
-void checkScreenTimeout() {
-  if (digitalRead(PRG_BUTTON) == LOW) {
-    wakeScreen();
-    delay(200); 
-  }
-  if (isScreenOn && (millis() - screenOnTime > screenTimeout)) {
-    isScreenOn = false;
-    display.displayOff();
-  }
-}
-
-void updateDisplay(String status = "") {
-  if (!isScreenOn) return; 
-
-  display.clear();
-  display.setFont(ArialMT_Plain_10);
-  display.drawString(0, 0, NODE_ID);
-  
-  if (IS_GATEWAY) {
-     String conn = client.connected() ? "MQTT: ON" : "MQTT: --";
-     display.drawString(80, 0, conn);
-  } else {
-     String sol = (solarStatus == 1) ? "SUN" : (solarStatus == 2) ? "FULL" : "--";
-     display.drawString(90, 0, sol);
-  }
-
-  display.drawString(0, 12, "Tnk: " + String(tankPercent) + "%");
-  if (status != "") display.drawString(64, 12, status);
-
-  display.setFont(ArialMT_Plain_16);
-  display.drawString(0, 25, String(currentTemp, 1) + "F");
-  display.drawString(64, 25, String(currentVac, 1) + "Hg");
-  
-  display.setFont(ArialMT_Plain_10);
-  display.drawString(0, 45, lastMessage);
-  display.display();
-}
-
-void sendData(String msg) {
-  Serial.print("TX LoRa: "); Serial.println(msg);
-  radio.standby();
-  radio.transmit(msg);
-  radio.startReceive();
-  if (IS_GATEWAY && client.connected()) {
-    client.publish("lora/mesh/rx", msg.c_str(), true); 
-  }
-}
-
 float readVacuum() {
   if (!hasVacuumSensor) return 0.0;
   float current_hPa = mpr.readPressure();
@@ -205,28 +146,204 @@ float readVacuum() {
   return vac_inHg;
 }
 
-void readSensorsAndSend() {
-  // --- BOOST CPU FOR SENSOR READ ---
-  setCpuFrequencyMhz(240); 
+void wakeScreen() {
+  isScreenOn = true;
+  screenOnTime = millis();
+  myDisplay.displayOn();
+}
+
+void checkButtonAndScreen() {
+  // If button is pressed (LOW)
+  if (digitalRead(PRG_BUTTON) == LOW) {
+    wakeScreen();
+    
+    // *** INSTANT TRANSMIT FEATURE ***
+    // 1. Show feedback
+    myDisplay.clear();
+    myDisplay.setFont(ArialMT_Plain_16);
+    myDisplay.drawString(0, 20, "Manual Read");
+    myDisplay.display();
+    delay(200); // Short delay to see message
+    
+    // 2. Force Read & Send
+    readSensorsAndSend();
+    
+    // 3. Long debounce to prevent machine-gunning if held
+    delay(1000); 
+  }
   
+  // Handle Screen Timeout
+  if (isScreenOn && (millis() - screenOnTime > screenTimeout)) {
+    isScreenOn = false;
+    myDisplay.displayOff();
+  }
+}
+
+void updateDisplay(String status = "") {
+  if (!isScreenOn) return; 
+
+  myDisplay.clear();
+  myDisplay.setFont(ArialMT_Plain_10);
+  
+  myDisplay.drawString(0, 0, NODE_ID);
+  myDisplay.drawString(80, 0, "v" FIRMWARE_VERSION); 
+  
+  if (IS_GATEWAY) {
+      String conn = client.connected() ? "MQTT: ON" : "MQTT: --";
+      myDisplay.drawString(40, 0, conn);
+  }
+
+  myDisplay.drawString(0, 12, "Tnk: " + String(tankPercent) + "%");
+  if (status != "") myDisplay.drawString(64, 12, status);
+
+  myDisplay.setFont(ArialMT_Plain_16);
+  myDisplay.drawString(0, 25, String(currentTemp, 1) + "F");
+  myDisplay.drawString(64, 25, String(currentVac, 1) + "Hg");
+  
+  myDisplay.setFont(ArialMT_Plain_10);
+  myDisplay.drawString(0, 45, lastMessage);
+  myDisplay.display();
+}
+
+// ==========================================
+//           SETUP
+// ==========================================
+void setup() {
+  Serial.begin(115200);
+
+  // 1. MANUAL VEXT POWER ON 
+  pinMode(36, OUTPUT); 
+  digitalWrite(36, LOW); 
+  delay(100);
+
+  // 2. HELTEC MCU INIT
+  Mcu.begin(HELTEC_BOARD, SLOW_CLK_TPYE);
+
+  // 3. SENSOR PINS
+  pinMode(PIN_CHRG, INPUT_PULLUP);
+  pinMode(PIN_DONE, INPUT_PULLUP);
+  pinMode(PIN_TRIG, OUTPUT);
+  pinMode(PIN_ECHO, INPUT);
+  pinMode(PRG_BUTTON, INPUT_PULLUP); 
+  analogReadResolution(12);
+
+  // 4. DISPLAY INIT
+  myDisplay.init();
+  // myDisplay.flipScreenVertically(); // Uncomment if upside down
+  wakeScreen();
+  
+  myDisplay.clear();
+  myDisplay.setFont(ArialMT_Plain_16);
+  myDisplay.drawString(0, 0, "Harter Farms");
+  myDisplay.setFont(ArialMT_Plain_10);
+  myDisplay.drawString(0, 25, "FW: " FIRMWARE_VERSION);
+  myDisplay.drawString(0, 40, "Built: " BUILD_DATE);
+  myDisplay.display();
+  delay(2000); 
+
+  updateDisplay("Booting...");
+
+  // 5. I2C SENSORS
+  Wire.begin(SDA_OLED, SCL_OLED); 
+  vacWire.begin(VAC_SDA_PIN, VAC_SCL_PIN);
+  
+  if (mpr.begin(0x18, &vacWire)) {
+    hasVacuumSensor = true;
+    myDisplay.drawString(0, 0, "Calibrating..."); myDisplay.display();
+    float total = 0;
+    for (int i=0; i<10; i++) { total += mpr.readPressure(); delay(50); }
+    baseline_hPa = total / 10.0;
+  } else { hasVacuumSensor = false; }
+
+  // 6. TEMP SENSOR
+  sensors.begin();
+
+  // 7. RADIO INIT 
+  RadioEvents.TxDone = OnTxDone;
+  RadioEvents.TxTimeout = OnTxTimeout;
+  RadioEvents.RxDone = OnRxDone;
+
+  Radio.Init( &RadioEvents );
+  Radio.SetChannel( RF_FREQUENCY );
+  Radio.SetTxConfig( MODEM_LORA, TX_OUTPUT_POWER, 0, LORA_BANDWIDTH,
+                                 LORA_SPREADING_FACTOR, LORA_CODINGRATE,
+                                 LORA_PREAMBLE_LENGTH, LORA_FIX_LENGTH_PAYLOAD_ON,
+                                 true, 0, 0, LORA_IQ_INVERSION_ON, 3000 );
+
+  Radio.SetRxConfig( MODEM_LORA, LORA_BANDWIDTH, LORA_SPREADING_FACTOR,
+                                 LORA_CODINGRATE, 0, LORA_PREAMBLE_LENGTH,
+                                 LORA_SYMBOL_TIMEOUT, LORA_FIX_LENGTH_PAYLOAD_ON,
+                                 0, true, 0, 0, LORA_IQ_INVERSION_ON, true );
+
+  // 8. GATEWAY WIFI SETUP
+  if (IS_GATEWAY) {
+    WiFi.begin(SECRET_WIFI_SSID, SECRET_WIFI_PASS);
+    unsigned long startWifi = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - startWifi < 10000) { delay(100); }
+    
+    if (WiFi.status() == WL_CONNECTED) {
+       client.setServer(SECRET_MQTT_IP, SECRET_MQTT_PORT);
+       updateDisplay("WiFi OK");
+    } else {
+       updateDisplay("WiFi Fail");
+    }
+    server.begin();
+  } else {
+    WiFi.mode(WIFI_OFF);
+  }
+  
+  Radio.Rx(0); 
+  
+  updateDisplay("Ready");
+  // Force immediate initial read
+  delay(1000); 
+  readSensorsAndSend();
+}
+
+// ==========================================
+//           LOOP
+// ==========================================
+void loop() {
+  Radio.IrqProcess();
+  
+  // NEW: Checks button for Instant Transmit
+  checkButtonAndScreen(); 
+
+  // Regular Timer
+  if (millis() - lastTempTime > tempInterval) {
+    lastTempTime = millis();
+    readSensorsAndSend();
+  }
+
+  if (IS_GATEWAY) {
+    if (WiFi.status() == WL_CONNECTED) {
+       if (!client.connected()) {
+          if (client.connect(("HeltecGw-" + String(random(999))).c_str(), SECRET_MQTT_USER, SECRET_MQTT_PASS)) {
+             client.subscribe("lora/mesh/tx");
+          }
+       }
+       client.loop();
+    }
+    server.handleClient();
+  }
+}
+
+// ==========================================
+//           LOGIC FUNCTIONS
+// ==========================================
+
+void readSensorsAndSend() {
+  // If Node: Wait for Idle. If Gateway: Send anyway (MQTT)
+  if (!IS_GATEWAY && lora_idle == false) return; 
+
   sensors.requestTemperatures(); 
   float newTemp = sensors.getTempFByIndex(0);
-  
-  // FIX: Ignore the "185" error code (Power-on reset value)
-  if (newTemp > 180.0) {
-      // Do not update currentTemp, keep old value
-  } else if (newTemp > -100) { 
-      // Only update if value is realistic (above -100F)
-      currentTemp = newTemp;
-  }
+  if (newTemp > -100 && newTemp < 180) currentTemp = newTemp;
   
   currentVac  = readVacuum();
   solarStatus = readSolarStatus();
   int battPct = getBatteryPercent();
   tankPercent = readTankLevel();
-
-  // --- DROP CPU BACK TO IDLE ---
-  setCpuFrequencyMhz(80);
 
   JsonDocument doc;
   doc["id"]   = NODE_ID;
@@ -240,123 +357,58 @@ void readSensorsAndSend() {
   String jsonString;
   serializeJson(doc, jsonString);
 
-  lastMessage = "TX Bat:" + String(battPct) + "%";
-  sendData(jsonString);
-  updateDisplay("Sent");
-}
-
-void reconnect() {
-  if (!client.connected()) {
-    String clientId = "Heltec-" + String(random(0xffff), HEX);
-    if (client.connect(clientId.c_str(), MQTT_USER, MQTT_PASS)) {
-      client.subscribe("lora/mesh/tx");
-      updateDisplay("MQTT OK");
-    } else { delay(5000); }
-  }
-}
-
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  String msg;
-  for (int i = 0; i < length; i++) msg += (char)payload[i];
-  sendData("{\"cmd\":\"" + msg + "\"}");
-}
-
-void setup() {
-  // --- START AT IDLE SPEED ---
-  setCpuFrequencyMhz(80); 
-
-  Serial.begin(115200);
-
-  pinMode(VEXT_PIN, OUTPUT); digitalWrite(VEXT_PIN, LOW); delay(100);
-  pinMode(OLED_RST, OUTPUT); digitalWrite(OLED_RST, LOW); delay(50); digitalWrite(OLED_RST, HIGH); delay(50);
-  
-  pinMode(PIN_CHRG, INPUT_PULLUP);
-  pinMode(PIN_DONE, INPUT_PULLUP);
-  pinMode(PIN_TRIG, OUTPUT);
-  pinMode(PIN_ECHO, INPUT);
-  
-  pinMode(PRG_BUTTON, INPUT_PULLUP); 
-  
-  analogReadResolution(12);
-
-  display.init(); display.flipScreenVertically();
-  
-  wakeScreen();
-  updateDisplay("Booting...");
-
-  Wire.begin(OLED_SDA, OLED_SCL);
-  vacWire.begin(VAC_SDA_PIN, VAC_SCL_PIN);
-  
-  if (mpr.begin(0x18, &vacWire)) {
-    hasVacuumSensor = true;
-    display.drawString(0, 0, "Calibrating..."); display.display();
-    float total = 0;
-    for (int i=0; i<10; i++) { total += mpr.readPressure(); delay(100); }
-    baseline_hPa = total / 10.0;
-  } else { hasVacuumSensor = false; }
-
-  // --- TEMP SENSOR FIX: FORCE DUMMY READ ---
-  setCpuFrequencyMhz(240); // Boost for initialization
-  sensors.begin();
-  sensors.requestTemperatures(); // Ask for temp
-  delay(750); // Wait for conversion
-  sensors.getTempFByIndex(0); // Throw away the "185" result
-  setCpuFrequencyMhz(80); // Drop back to idle
-
-  // --- LORA SETUP (2dBm for testing, change to 22 later) ---
-  int state = radio.begin(FREQUENCY, 125.0, 9, 7, 0x12, 22);
-  if (state == RADIOLIB_ERR_NONE) {
-    radio.setDio2AsRfSwitch(true);
-    radio.setPacketReceivedAction(setFlag);
-    radio.startReceive();
-  }
-
   if (IS_GATEWAY) {
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
-    while (WiFi.status() != WL_CONNECTED) { delay(500); }
-    client.setServer(MQTT_SERVER, MQTT_PORT);
-    client.setCallback(mqttCallback);
-    server.begin();
-  } else { WiFi.mode(WIFI_OFF); }
-  
-  updateDisplay("Ready");
-
-  // --- FORCE IMMEDIATE TRANSMIT ---
-  // Don't wait 5 minutes! Send data right now.
-  readSensorsAndSend();
+      if (client.connected()) {
+          client.publish("lora/mesh/rx", jsonString.c_str(), true); 
+      }
+      lastMessage = "Gw Update";
+      updateDisplay("Sens Upd");
+  } 
+  else {
+      sprintf(txpacket, "%s", jsonString.c_str());
+      Serial.printf("TX: %s\r\n", txpacket);
+      Radio.Send( (uint8_t *)txpacket, strlen(txpacket) );
+      lora_idle = false;
+      lastMessage = "TX Sent";
+      updateDisplay("Sending...");
+  }
 }
 
-void loop() {
-  checkScreenTimeout();
+// ==========================================
+//           RADIO CALLBACKS
+// ==========================================
+void OnTxDone( void ) {
+  Serial.println("TX Done");
+  lora_idle = true;
+  updateDisplay("Sent OK");
+  Radio.Rx(0);
+}
 
-  if (millis() - lastTempTime > tempInterval) {
-    lastTempTime = millis();
-    readSensorsAndSend();
-  }
+void OnTxTimeout( void ) {
+  Serial.println("TX Timeout");
+  lora_idle = true;
+  Radio.Rx(0);
+}
+
+void OnRxDone( uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr ) {
+  Radio.Sleep();
+  memcpy(rxpacket, payload, size );
+  rxpacket[size] = '\0';
   
-  if (packetReceived) {
-    packetReceived = false;
-    String str;
-    int state = radio.readData(str);
-    if (state == RADIOLIB_ERR_NONE) {
-      lastMessage = "RX: Data"; 
-      
-      if (isScreenOn) {
-        pinMode(LED_PIN, OUTPUT); digitalWrite(LED_PIN, HIGH);
-        delay(50); digitalWrite(LED_PIN, LOW);
-      }
-      
-      if (IS_GATEWAY && client.connected()) {
-        client.publish("lora/mesh/rx", str.c_str(), true);
-      }
-      updateDisplay("RX OK");
-    }
-    radio.startReceive();
-  }
+  Serial.printf("RX: \"%s\" | RSSI: %d\r\n", rxpacket, rssi);
+  lastMessage = "RX: " + String(rssi) + "dB";
   
-  if (IS_GATEWAY) {
-    if (!client.connected()) reconnect();
-    client.loop();
-    server.handleClient();
+  if (isScreenOn) {
+     digitalWrite(LED_PIN, HIGH); delay(50); digitalWrite(LED_PIN, LOW);
   }
+
+  if (IS_GATEWAY && client.connected()) {
+     client.publish("lora/mesh/rx", rxpacket, true);
+     updateDisplay("MQTT Pub");
+  } else {
+     updateDisplay("RX Data");
+  }
+
+  lora_idle = true;
+  Radio.Rx(0);
 }
