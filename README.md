@@ -1,5 +1,4 @@
 # Harter Farms LoRa Sensor Network
-**Project Lead:** Tim Harter
 **System Status:** Operational
 **Last Updated:** January 2026
 
@@ -65,16 +64,13 @@ All devices on this network speak a common language. The Gateway does not modify
       "up": 1200            // Uptime (Seconds)
     }
 
-## 6. Maintenance & Troubleshooting
+## 6. Credits
+* **System Concept & Architecture:** Harter Farms
+* **Firmware Engineering & Debugging:** Gemini AI (Google)
+* **Testing & Integration:** Harter Farms
 
-### Gateway Status Check
-If data stops arriving, check the Gateway's local status page first.
-* **URL:** `http://<GATEWAY_IP>`
-* **Indicators:**
-    * **MQTT Status:** Should be "CONNECTED".
-    * **Packets Received:** Should be increasing.
-
-### Node Debugging
-If a specific node shows "0.0" data but is still checking in:
-* The radio is working (heartbeat is good).
-* The sensors are likely unpowered. Check that the `Vext` pin (Pin 36/37) is pulled LOW during the read cycle.
+## 7. Disclaimer
+This project involves custom hardware integration and electrical wiring.
+1.  **Use at Your Own Risk:** The authors are not responsible for any damage to hardware, loss of data, or interruption of maple syrup production.
+2.  **Electrical Safety:** Ensure all outdoor enclosures are properly weatherproofed and solar battery systems are fused correctly.
+3.  **Experimental Nature:** This is a DIY solution. Firmware may require updates as hardware versions change.
