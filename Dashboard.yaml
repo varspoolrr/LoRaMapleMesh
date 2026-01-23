@@ -1,0 +1,232 @@
+type: grid
+columns: 4
+square: false
+cards:
+  - type: vertical-stack
+    cards:
+      - type: markdown
+        content: |
+          <div style="text-align: center; line-height: 1.1;">
+            <b style="font-size: 15px;">Node 1 (Woods)</b><br>
+            <span style="font-size: 11px; color: gray;">
+            Last Seen: {{ relative_time(states.sensor.node_1_uptime.last_updated) if states.sensor.node_1_uptime else 'Wait' }}
+             • Boot: {{ as_timestamp(states('sensor.node_1_boot_time')) | timestamp_custom('%b %d %-I:%M%p') if states.sensor.node_1_boot_time else '--' }}
+            </span>
+          </div>
+        card_mod:
+          style: |
+            ha-card {
+              background: none;
+              border: none;
+              padding: 0px !important;
+              margin-bottom: -10px !important;
+            }
+      - type: gauge
+        entity: sensor.node_1_vacuum
+        name: Vacuum
+        unit: inHg
+        min: -30
+        max: 0
+        needle: true
+        severity:
+          green: -30
+          yellow: -20
+          red: -10
+      - type: gauge
+        entity: sensor.node_1_temperature
+        name: Temp
+        unit: °F
+        min: 0
+        max: 100
+        severity:
+          blue: 0
+          green: 32
+          red: 80
+      - type: gauge
+        entity: sensor.node_1_sap_level
+        name: Sap Tank
+        unit: "%"
+        min: 0
+        max: 100
+        needle: true
+        severity:
+          green: 75
+          yellow: 40
+          red: 0
+      - type: entities
+        entities:
+          - entity: sensor.node_1_battery
+            name: Battery
+          - entity: sensor.node_1_solar_status
+            name: Solar
+  - type: vertical-stack
+    cards:
+      - type: markdown
+        content: |
+          <div style="text-align: center; line-height: 1.1;">
+            <b style="font-size: 15px;">Node 2 (Barn)</b><br>
+            <span style="font-size: 11px; color: gray;">
+            Last Seen: {{ relative_time(states.sensor.node_2_uptime.last_updated) if states.sensor.node_2_uptime else 'Wait' }}
+             • Boot: {{ as_timestamp(states('sensor.node_2_boot_time')) | timestamp_custom('%b %d %-I:%M%p') if states.sensor.node_2_boot_time else '--' }}
+            </span>
+          </div>
+        card_mod:
+          style: |
+            ha-card {
+              background: none;
+              border: none;
+              padding: 0px !important;
+              margin-bottom: -10px !important;
+            }
+      - type: gauge
+        entity: sensor.node_2_vacuum
+        name: Vacuum
+        unit: inHg
+        min: -30
+        max: 0
+        needle: true
+        severity:
+          green: -30
+          yellow: -20
+          red: -10
+      - type: gauge
+        entity: sensor.node_2_temperature
+        name: Temp
+        unit: °F
+        min: 0
+        max: 100
+        severity:
+          blue: 0
+          green: 32
+          red: 80
+      - type: gauge
+        entity: sensor.node_2_sap_level
+        name: Sap Tank
+        unit: "%"
+        min: 0
+        max: 100
+        needle: true
+        severity:
+          green: 75
+          yellow: 40
+          red: 0
+      - type: entities
+        entities:
+          - entity: sensor.node_2_battery
+            name: Battery
+          - entity: sensor.node_2_solar_status
+            name: Solar
+  - type: vertical-stack
+    cards:
+      - type: markdown
+        content: |
+          <div style="text-align: center; line-height: 1.1;">
+            <b style="font-size: 15px;">Node 3 (Creek)</b><br>
+            <span style="font-size: 11px; color: gray;">
+            Last Seen: {{ relative_time(states.sensor.node_3_uptime.last_updated) if states.sensor.node_3_uptime else 'Wait' }}
+             • Boot: {{ as_timestamp(states('sensor.node_3_boot_time')) | timestamp_custom('%b %d %-I:%M%p') if states.sensor.node_3_boot_time else '--' }}
+            </span>
+          </div>
+        card_mod:
+          style: |
+            ha-card {
+              background: none;
+              border: none;
+              padding: 0px !important;
+              margin-bottom: -10px !important;
+            }
+      - type: gauge
+        entity: sensor.node_3_vacuum
+        name: Vacuum
+        unit: inHg
+        min: -30
+        max: 0
+        needle: true
+        severity:
+          green: -30
+          yellow: -20
+          red: -10
+      - type: gauge
+        entity: sensor.node_3_temperature
+        name: Temp
+        unit: °F
+        min: 0
+        max: 100
+        severity:
+          blue: 0
+          green: 32
+          red: 80
+      - type: gauge
+        entity: sensor.node_3_sap_level
+        name: Sap Tank
+        unit: "%"
+        min: 0
+        max: 100
+        needle: true
+        severity:
+          green: 75
+          yellow: 40
+          red: 0
+      - type: entities
+        entities:
+          - entity: sensor.node_3_battery
+            name: Battery
+          - entity: sensor.node_3_solar_status
+            name: Solar
+  - type: vertical-stack
+    cards:
+      - type: markdown
+        content: |
+          <div style="text-align: center; line-height: 1.1;">
+            <b style="font-size: 15px;">Node 4 (New Line)</b><br>
+            <span style="font-size: 11px; color: gray;">
+            Last Seen: {{ relative_time(states.sensor.node_4_uptime.last_updated) if states.sensor.node_4_uptime else 'Wait' }}
+             • Boot: {{ as_timestamp(states('sensor.node_4_boot_time')) | timestamp_custom('%b %d %-I:%M%p') if states.sensor.node_4_boot_time else '--' }}
+            </span>
+          </div>
+        card_mod:
+          style: |
+            ha-card {
+              background: none;
+              border: none;
+              padding: 0px !important;
+              margin-bottom: -10px !important;
+            }
+      - type: gauge
+        entity: sensor.node_4_vacuum
+        name: Vacuum
+        unit: inHg
+        min: -30
+        max: 0
+        needle: true
+        severity:
+          green: -30
+          yellow: -20
+          red: -10
+      - type: gauge
+        entity: sensor.node_4_temperature
+        name: Temp
+        unit: °F
+        min: 0
+        max: 100
+        severity:
+          blue: 0
+          green: 32
+          red: 80
+      - type: gauge
+        entity: sensor.node_4_sap_level
+        name: Sap Tank
+        unit: "%"
+        min: 0
+        max: 100
+        needle: true
+        severity:
+          green: 75
+          yellow: 40
+          red: 0
+      - type: entities
+        entities:
+          - entity: sensor.node_4_battery
+            name: Battery
+          - entity: sensor.node_4_solar_status
+            name: Solar
