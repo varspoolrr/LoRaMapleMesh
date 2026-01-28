@@ -1,17 +1,597 @@
-type: entities
-title: Harter Farms - Node 2
-show_header_toggle: false
-entities:
-  - entity: sensor.node_2_temperature
-    name: Temperature
-  - entity: sensor.node_2_vacuum
-    name: Line Vacuum
-  - entity: sensor.node_2_tank_level
-    name: Tank Level
-  - entity: sensor.node_2_battery
-    name: Battery
-  - entity: sensor.node_2_solar
-    name: Solar Input
-  - entity: sensor.node_2_uptime
-    name: Uptime
-    secondary_info: last-updated
+mqtt:
+  sensor:
+    # ==================================================================
+    #                               NODE 1 (WOODS)
+    # ==================================================================
+    - name: "Node 1 Temperature"
+      unique_id: "node_1_temp"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement  # <--- FIXED STATISTICS
+      value_template: >
+        {% if value_json.id == 'node_1' %}
+          {{ value_json.temp }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 1 Vacuum"
+      unique_id: "node_1_vac"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "inHg"
+      icon: "mdi:gauge"
+      state_class: measurement  # <--- FIXED STATISTICS
+      force_update: true
+      value_template: >
+        {% if value_json.id == 'node_1' %}
+          {{ value_json.vac }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 1 Battery"
+      unique_id: "node_1_batt"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement  # <--- FIXED STATISTICS
+      value_template: >
+        {% if value_json.id == 'node_1' %}
+          {{ value_json.batt }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 1 Sap Level"
+      unique_id: "node_1_sap_level_fixed"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      icon: "mdi:cup-water"
+      state_class: measurement  # <--- FIXED STATISTICS
+      value_template: >
+        {% if value_json.id == 'node_1' and value_json.lvl is defined %}
+          {{ value_json.lvl }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 1 Solar Status"
+      unique_id: "node_1_solar"
+      state_topic: "lora/mesh/rx"
+      icon: "mdi:solar-power"
+      value_template: >
+        {% if value_json.id == 'node_1' %}
+          {% if value_json.sol == 1 %}
+            Charging
+          {% elif value_json.sol == 2 %}
+            Full
+          {% else %}
+            Standby
+          {% endif %}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 1 Boot Time"
+      unique_id: "node_1_boot"
+      state_topic: "lora/mesh/rx"
+      device_class: timestamp
+      value_template: >
+        {% if value_json.id == 'node_1' and value_json.up is defined %}
+          {{ (now() - timedelta(seconds=value_json.up)).isoformat() }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 1 Uptime"
+      unique_id: "node_1_uptime"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "s"
+      icon: "mdi:clock-outline"
+      value_template: >
+        {% if value_json.id == 'node_1' %}
+          {{ value_json.up }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    # ==================================================================
+    #                               NODE 2 (BARN)
+    # ==================================================================
+    - name: "Node 2 Temperature"
+      unique_id: "node_2_temp"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_2' %}
+          {{ value_json.temp }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 2 Vacuum"
+      unique_id: "node_2_vac"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "inHg"
+      icon: "mdi:gauge"
+      state_class: measurement
+      force_update: true
+      value_template: >
+        {% if value_json.id == 'node_2' %}
+          {{ value_json.vac }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 2 Battery"
+      unique_id: "node_2_batt"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_2' %}
+          {{ value_json.batt }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 2 Sap Level"
+      unique_id: "node_2_sap_level_fixed"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      icon: "mdi:cup-water"
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_2' and value_json.lvl is defined %}
+          {{ value_json.lvl }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 2 Solar Status"
+      unique_id: "node_2_solar"
+      state_topic: "lora/mesh/rx"
+      icon: "mdi:solar-power"
+      value_template: >
+        {% if value_json.id == 'node_2' %}
+          {% if value_json.sol == 1 %}
+            Charging
+          {% elif value_json.sol == 2 %}
+            Full
+          {% else %}
+            Standby
+          {% endif %}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 2 Boot Time"
+      unique_id: "node_2_boot"
+      state_topic: "lora/mesh/rx"
+      device_class: timestamp
+      value_template: >
+        {% if value_json.id == 'node_2' and value_json.up is defined %}
+          {{ (now() - timedelta(seconds=value_json.up)).isoformat() }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 2 Uptime"
+      unique_id: "node_2_uptime"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "s"
+      icon: "mdi:clock-outline"
+      value_template: >
+        {% if value_json.id == 'node_2' %}
+          {{ value_json.up }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    # ==================================================================
+    #                               NODE 3 (CREEK)
+    # ==================================================================
+    - name: "Node 3 Temperature"
+      unique_id: "node_3_temp"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_3' %}
+          {{ value_json.temp }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 3 Vacuum"
+      unique_id: "node_3_vac"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "inHg"
+      icon: "mdi:gauge"
+      state_class: measurement
+      force_update: true
+      value_template: >
+        {% if value_json.id == 'node_3' %}
+          {{ value_json.vac }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 3 Battery"
+      unique_id: "node_3_batt"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_3' %}
+          {{ value_json.batt }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 3 Sap Level"
+      unique_id: "node_3_sap_level_fixed"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      icon: "mdi:cup-water"
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_3' and value_json.lvl is defined %}
+          {{ value_json.lvl }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 3 Solar Status"
+      unique_id: "node_3_solar"
+      state_topic: "lora/mesh/rx"
+      icon: "mdi:solar-power"
+      value_template: >
+        {% if value_json.id == 'node_3' %}
+          {% if value_json.sol == 1 %}
+            Charging
+          {% elif value_json.sol == 2 %}
+            Full
+          {% else %}
+            Standby
+          {% endif %}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 3 Boot Time"
+      unique_id: "node_3_boot"
+      state_topic: "lora/mesh/rx"
+      device_class: timestamp
+      value_template: >
+        {% if value_json.id == 'node_3' and value_json.up is defined %}
+          {{ (now() - timedelta(seconds=value_json.up)).isoformat() }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 3 Uptime"
+      unique_id: "node_3_uptime"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "s"
+      icon: "mdi:clock-outline"
+      value_template: >
+        {% if value_json.id == 'node_3' %}
+          {{ value_json.up }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    # ==================================================================
+    #                               NODE 4 (NEW LINE)
+    # ==================================================================
+    - name: "Node 4 Temperature"
+      unique_id: "node_4_temp"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_4' %}
+          {{ value_json.temp }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 4 Vacuum"
+      unique_id: "node_4_vac"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "inHg"
+      icon: "mdi:gauge"
+      state_class: measurement
+      force_update: true
+      value_template: >
+        {% if value_json.id == 'node_4' %}
+          {{ value_json.vac }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 4 Battery"
+      unique_id: "node_4_batt"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_4' %}
+          {{ value_json.batt }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 4 Sap Level"
+      unique_id: "node_4_sap_level_fixed"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      icon: "mdi:cup-water"
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_4' and value_json.lvl is defined %}
+          {{ value_json.lvl }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 4 Solar Status"
+      unique_id: "node_4_solar"
+      state_topic: "lora/mesh/rx"
+      icon: "mdi:solar-power"
+      value_template: >
+        {% if value_json.id == 'node_4' %}
+          {% if value_json.sol == 1 %}
+            Charging
+          {% elif value_json.sol == 2 %}
+            Full
+          {% else %}
+            Standby
+          {% endif %}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 4 Boot Time"
+      unique_id: "node_4_boot"
+      state_topic: "lora/mesh/rx"
+      device_class: timestamp
+      value_template: >
+        {% if value_json.id == 'node_4' and value_json.up is defined %}
+          {{ (now() - timedelta(seconds=value_json.up)).isoformat() }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 4 Uptime"
+      unique_id: "node_4_uptime"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "s"
+      icon: "mdi:clock-outline"
+      value_template: >
+        {% if value_json.id == 'node_4' %}
+          {{ value_json.up }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    # ==================================================================
+    #                               NODE 5
+    # ==================================================================
+    - name: "Node 5 Temperature"
+      unique_id: "node_5_temp"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_5' %}
+          {{ value_json.temp }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 5 Vacuum"
+      unique_id: "node_5_vac"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "inHg"
+      icon: "mdi:gauge"
+      state_class: measurement
+      force_update: true
+      value_template: >
+        {% if value_json.id == 'node_5' %}
+          {{ value_json.vac }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 5 Battery"
+      unique_id: "node_5_batt"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_5' %}
+          {{ value_json.batt }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 5 Sap Level"
+      unique_id: "node_5_sap_level_fixed"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      icon: "mdi:cup-water"
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_5' and value_json.lvl is defined %}
+          {{ value_json.lvl }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 5 Solar Status"
+      unique_id: "node_5_solar"
+      state_topic: "lora/mesh/rx"
+      icon: "mdi:solar-power"
+      value_template: >
+        {% if value_json.id == 'node_5' %}
+          {% if value_json.sol == 1 %}
+            Charging
+          {% elif value_json.sol == 2 %}
+            Full
+          {% else %}
+            Standby
+          {% endif %}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 5 Boot Time"
+      unique_id: "node_5_boot"
+      state_topic: "lora/mesh/rx"
+      device_class: timestamp
+      value_template: >
+        {% if value_json.id == 'node_5' and value_json.up is defined %}
+          {{ (now() - timedelta(seconds=value_json.up)).isoformat() }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 5 Uptime"
+      unique_id: "node_5_uptime"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "s"
+      icon: "mdi:clock-outline"
+      value_template: >
+        {% if value_json.id == 'node_5' %}
+          {{ value_json.up }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    # ==================================================================
+    #                               NODE 6
+    # ==================================================================
+    - name: "Node 6 Temperature"
+      unique_id: "node_6_temp"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "°F"
+      device_class: temperature
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_6' %}
+          {{ value_json.temp }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 6 Vacuum"
+      unique_id: "node_6_vac"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "inHg"
+      icon: "mdi:gauge"
+      state_class: measurement
+      force_update: true
+      value_template: >
+        {% if value_json.id == 'node_6' %}
+          {{ value_json.vac }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 6 Battery"
+      unique_id: "node_6_batt"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_6' %}
+          {{ value_json.batt }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 6 Sap Level"
+      unique_id: "node_6_sap_level_fixed"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "%"
+      icon: "mdi:cup-water"
+      state_class: measurement
+      value_template: >
+        {% if value_json.id == 'node_6' and value_json.lvl is defined %}
+          {{ value_json.lvl }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 6 Solar Status"
+      unique_id: "node_6_solar"
+      state_topic: "lora/mesh/rx"
+      icon: "mdi:solar-power"
+      value_template: >
+        {% if value_json.id == 'node_6' %}
+          {% if value_json.sol == 1 %}
+            Charging
+          {% elif value_json.sol == 2 %}
+            Full
+          {% else %}
+            Standby
+          {% endif %}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 6 Boot Time"
+      unique_id: "node_6_boot"
+      state_topic: "lora/mesh/rx"
+      device_class: timestamp
+      value_template: >
+        {% if value_json.id == 'node_6' and value_json.up is defined %}
+          {{ (now() - timedelta(seconds=value_json.up)).isoformat() }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+    - name: "Node 6 Uptime"
+      unique_id: "node_6_uptime"
+      state_topic: "lora/mesh/rx"
+      unit_of_measurement: "s"
+      icon: "mdi:clock-outline"
+      value_template: >
+        {% if value_json.id == 'node_6' %}
+          {{ value_json.up }}
+        {% else %}
+          {{ this.state }}
+        {% endif %}
+
+input_boolean:
+  node_1_tank_enable:
+    name: Node 1 Tank Enable
+    icon: mdi:toggle-switch
+  node_2_tank_enable:
+    name: Node 2 Tank Enable
+    icon: mdi:toggle-switch
+  node_3_tank_enable:
+    name: Node 3 Tank Enable
+    icon: mdi:toggle-switch
+  node_4_tank_enable:
+    name: Node 4 Tank Enable
+    icon: mdi:toggle-switch
+  node_5_tank_enable:
+    name: Node 5 Tank Enable
+    icon: mdi:toggle-switch
+  node_6_tank_enable:
+    name: Node 6 Tank Enable
+    icon: mdi:toggle-switch
